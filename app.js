@@ -22,7 +22,7 @@ class ChatApp {
 2. 回答要简洁专业
 3. 使用 Markdown 格式组织回答内容，包括：
    - 使用标题层级（#）来组织内容结构
-   - 使用列表（- 或 1.）来枚举要点
+   - 使用列表（- 或 1.）��枚举要点
    - 使用代码块（\`\`\`）来显示代码
    - 使用表格来展示结构化数据
    - 适当使用粗体（**）和斜体（*）来强调重要内容
@@ -259,7 +259,7 @@ class ChatApp {
         } catch (error) {
             console.error('Error:', error);
             
-            // 移除加载状态消息（如果存在）
+            // 移除加载���态消息（如果存在）
             const loadingElement = document.getElementById(loadingId);
             if (loadingElement) {
                 this.messages.removeChild(loadingElement);
@@ -347,18 +347,24 @@ class ChatApp {
                     if (line.startsWith('data: ')) {
                         try {
                             const jsonData = line.slice(6);
-                            if (jsonData.trim()) {
-                                const data = JSON.parse(jsonData);
-                                if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
-                                    content += data.choices[0].delta.content;
-                                    // 使用 Markdown 渲染内容
-                                    messageContent.innerHTML = marked.parse(content);
-                                    // 代码高亮
-                                    messageContent.querySelectorAll('pre code').forEach((block) => {
-                                        hljs.highlightBlock(block);
-                                    });
-                                    this.scrollToBottom();
-                                }
+                            if (!jsonData.trim()) continue;
+
+                            // 检查是否是特殊的函数调用格式
+                            if (jsonData.includes('"id":') && jsonData.includes('"name":') && jsonData.includes('"arguments":')) {
+                                console.log('Skipping function call message');
+                                continue;
+                            }
+
+                            const data = JSON.parse(jsonData);
+                            if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
+                                content += data.choices[0].delta.content;
+                                // 使用 Markdown 渲染内容
+                                messageContent.innerHTML = marked.parse(content);
+                                // 代码高亮
+                                messageContent.querySelectorAll('pre code').forEach((block) => {
+                                    hljs.highlightBlock(block);
+                                });
+                                this.scrollToBottom();
                             }
                         } catch (parseError) {
                             console.error('解析响应数据时出错:', parseError);
@@ -470,7 +476,7 @@ class ChatApp {
 1. 将英文文本翻译成简体中文
 2. 保持专业和准确性
 3. 使用 Markdown 格式组织内容
-4. 如果是列表内容，保持列表格式
+4. 如果是列表内容，保持��表格式
 5. 不要重复输出内容
 6. 不要在翻译后附加原文`
                     },
