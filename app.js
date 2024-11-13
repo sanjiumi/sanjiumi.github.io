@@ -22,7 +22,7 @@ class ChatApp {
 2. 回答要简洁专业
 3. 使用 Markdown 格式组织回答内容，包括：
    - 使用标题层级（#）来组织内容结构
-   - 使用列表（- 或 1.）��枚举要点
+   - 使用列表（- 或 1.）枚举要点
    - 使用代码块（\`\`\`）来显示代码
    - 使用表格来展示结构化数据
    - 适当使用粗体（**）和斜体（*）来强调重要内容
@@ -50,7 +50,8 @@ class ChatApp {
         this.API_KEYS.forEach(key => {
             this.apiCallCount[key] = {
                 count: 0,
-                lastReset: Date.now()
+                lastReset: Date.now(),
+                maxCallsPerMinute: 30  // 添加每分钟最大调用次数限制
             };
         });
 
@@ -199,7 +200,9 @@ class ChatApp {
     resetApiCounters() {
         const now = Date.now();
         Object.keys(this.apiCallCount).forEach(key => {
-            if (now - this.apiCallCount[key].lastReset >= 60000) {
+            const timeSinceLastReset = now - this.apiCallCount[key].lastReset;
+            if (timeSinceLastReset >= 60000) {  // 如果超过1分钟
+                console.log(`Resetting counter for API key: ${key.slice(0, 10)}...`);
                 this.apiCallCount[key].count = 0;
                 this.apiCallCount[key].lastReset = now;
             }
@@ -208,24 +211,35 @@ class ChatApp {
 
     // 获取可用的 API 密钥
     getAvailableApiKey() {
+        const now = Date.now();
+        
+        // 首先检查并重置超过1分钟的计数器
+        Object.keys(this.apiCallCount).forEach(key => {
+            const timeSinceLastReset = now - this.apiCallCount[key].lastReset;
+            if (timeSinceLastReset >= 60000) {
+                this.apiCallCount[key].count = 0;
+                this.apiCallCount[key].lastReset = now;
+            }
+        });
+
+        // 获取所有未达到限制的API密钥
         const availableKeys = this.API_KEYS.filter(key => {
-            return !this.apiCallCount[key] || this.apiCallCount[key].count < 30;
+            const counter = this.apiCallCount[key];
+            return counter.count < counter.maxCallsPerMinute;
         });
 
         if (availableKeys.length === 0) {
-            throw new Error('所有 API 密钥已达到调用限制，请稍后再试');
+            const waitTime = Math.ceil((60000 - (now - Math.min(...Object.values(this.apiCallCount).map(c => c.lastReset)))) / 1000);
+            throw new Error(`所有 API 密钥已达到调用限制，请等待 ${waitTime} 秒后重试`);
         }
 
+        // 随机选择一个可用密钥
         const selectedKey = availableKeys[Math.floor(Math.random() * availableKeys.length)];
         
-        if (!this.apiCallCount[selectedKey]) {
-            this.apiCallCount[selectedKey] = {
-                count: 0,
-                lastReset: Date.now()
-            };
-        }
-        
+        // 更新计数
         this.apiCallCount[selectedKey].count++;
+        console.log(`Using API key: ${selectedKey.slice(0, 10)}... (Count: ${this.apiCallCount[selectedKey].count})`);
+        
         return selectedKey;
     }
 
@@ -259,7 +273,7 @@ class ChatApp {
         } catch (error) {
             console.error('Error:', error);
             
-            // 移除加载���态消息（如果存在）
+            // 移除加载态消息（如果存在）
             const loadingElement = document.getElementById(loadingId);
             if (loadingElement) {
                 this.messages.removeChild(loadingElement);
@@ -275,8 +289,18 @@ class ChatApp {
         try {
             selectedApiKey = this.getAvailableApiKey();
         } catch (error) {
-            throw new Error('API调用受限：' + error.message);
+            const loadingElement = document.getElementById(loadingId);
+            if (loadingElement) {
+                this.messages.removeChild(loadingElement);
+            }
+            this.addMessage(error.message, 'error', false);
+            throw error;
         }
+
+        const contextMessages = this.getContextMessages();
+        console.log('Context messages count:', contextMessages.length);
+        console.log('Estimated tokens:', contextMessages.reduce((acc, msg) => 
+            acc + Math.ceil(msg.content.length * 1.5), 0));
 
         const response = await fetch(this.API_URL, {
             method: 'POST',
@@ -288,14 +312,15 @@ class ChatApp {
                 model: this.modelSelect.value,
                 messages: [
                     this.systemMessage,
-                    ...this.getContextMessages(),
+                    ...contextMessages,
                     {
                         role: 'user',
                         content: message
                     }
                 ],
                 temperature: 0.7,
-                stream: true
+                stream: true,
+                max_tokens: 2000 // 限制响应长度
             })
         });
 
@@ -411,10 +436,47 @@ class ChatApp {
         const currentChat = this.chats.find(c => c.id === this.currentChatId);
         if (!currentChat) return [];
 
-        return currentChat.messages.slice(-5).map(msg => ({
-            role: msg.type === 'user' ? 'user' : 'assistant',
-            content: msg.content
-        }));
+        // 获取当前选择的模型的上下文窗口大小
+        const modelContextSizes = {
+            'mixtral-8x7b-32768': 32768,
+            'gemma-7b-it': 8192,
+            'gemma2-9b-it': 8192,
+            'llama3-70b-8192': 8192,
+            'llama3-8b-8192': 8192,
+            'llama-3.1-70b-versatile': 32768,
+            'llama3-groq-70b-8192-tool-use-preview': 8192,
+            'llama3-groq-8b-8192-tool-use-preview': 8192
+        };
+
+        const modelContextSize = modelContextSizes[this.modelSelect.value] || 8192;
+        const messages = currentChat.messages;
+        
+        // 计算总token数（粗略估计：每个字符算1.5个token）
+        let totalTokens = 0;
+        const contextMessages = [];
+        
+        // 从最新的消息开始添加，直到达到token限制
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const msg = messages[i];
+            const estimatedTokens = Math.ceil(msg.content.length * 1.5);
+            
+            // 预留2000个token给新的回复和系统提示
+            const maxTokens = modelContextSize - 2000;
+            if (totalTokens + estimatedTokens > maxTokens) {
+                console.log(`Token limit reached at message ${i}, total tokens: ${totalTokens}`);
+                break;
+            }
+            
+            contextMessages.unshift({
+                role: msg.type === 'user' ? 'user' : 'assistant',
+                content: msg.content
+            });
+            
+            totalTokens += estimatedTokens;
+        }
+
+        console.log(`Using ${contextMessages.length} messages with estimated ${totalTokens} tokens`);
+        return contextMessages;
     }
 
     addMessage(content, type, save = true) {
@@ -476,7 +538,7 @@ class ChatApp {
 1. 将英文文本翻译成简体中文
 2. 保持专业和准确性
 3. 使用 Markdown 格式组织内容
-4. 如果是列表内容，保持��表格式
+4. 如果是列表内容，保持表格式
 5. 不要重复输出内容
 6. 不要在翻译后附加原文`
                     },
