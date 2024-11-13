@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 助手</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.8.0/styles/github.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.8.0/lib/highlight.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 左侧边栏 -->
+        <aside class="sidebar">
+            <button class="new-chat-btn" id="newChatBtn">
+                <svg width="24" height="24" viewBox="0 0 24 24">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                新建对话
+            </button>
+            <div class="chat-history" id="chatHistory">
+                <!-- 对话历史将在这里动态插入，每个对话项会包含删除按钮 -->
+            </div>
+        </aside>
+
+        <!-- 主要内容区域 -->
+        <div class="main-content">
+            <nav class="nav-bar">
+                <div class="logo">AI 助手</div>
+                <div class="nav-items">
+                    <select id="modelSelect" class="model-select">
+                        <optgroup label="Mistral AI">
+                            <option value="mixtral-8x7b-32768">Mixtral 8x7B (32k)</option>
+                        </optgroup>
+                        <optgroup label="Google">
+                            <option value="gemma-7b-it">Gemma 7B (8k)</option>
+                            <option value="gemma2-9b-it">Gemma 2 9B (8k)</option>
+                        </optgroup>
+                        <optgroup label="Meta">
+                            <option value="llama3-70b-8192">LLaMA3 70B (8k)</option>
+                            <option value="llama3-8b-8192">LLaMA3 8B (8k)</option>
+                            <option value="llama-3.1-70b-versatile">LLaMA 3.1 70B (32k)</option>
+                        </optgroup>
+                        <optgroup label="Groq">
+                            <option value="llama3-groq-70b-8192-tool-use-preview">LLaMA3 Groq 70B (8k)</option>
+                            <option value="llama3-groq-8b-8192-tool-use-preview">LLaMA3 Groq 8B (8k)</option>
+                        </optgroup>
+                    </select>
+                    <button class="theme-toggle" id="themeToggle">
+                        <svg width="24" height="24" viewBox="0 0 24 24">
+                            <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446A9 9 0 1 1 12 2.992z"/>
+                        </svg>
+                    </button>
+                </div>
+            </nav>
+
+            <main class="chat-container">
+                <div class="messages" id="messages">
+                    <!-- 消息将在这里动态插入 -->
+                </div>
+                <div class="input-container">
+                    <textarea 
+                        id="userInput" 
+                        placeholder="输入消息..." 
+                        rows="1"
+                        autofocus
+                    ></textarea>
+                    <button id="sendButton" class="send-button">
+                        <svg width="24" height="24" viewBox="0 0 24 24">
+                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                        </svg>
+                    </button>
+                </div>
+            </main>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html> 
